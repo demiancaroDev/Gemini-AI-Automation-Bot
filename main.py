@@ -3,10 +3,12 @@ from google import genai
 import threading
 import os
 
-GEMINI_KEY = os.environ.get("GEMINI_KEY") # ---Aqui colocas tu API Key de Gemini---
+GEMINI_KEY = os.environ.get("GEMINI_KEY")
 MODEL_ID = "gemini-1.5-flash-latest"
 
-client = genai.Client(api_key=GEMINI_KEY)
+client = None
+if GEMINI_KEY:
+    client = genai.Client(api_key=GEMINI_KEY.strip())
 
 class AsistenteFlotante(ctk.CTk):
     def __init__(self):
@@ -17,6 +19,9 @@ class AsistenteFlotante(ctk.CTk):
         self.attributes('-alpha', 0.95)
         ctk.set_appearance_mode("Dark")
         self.crear_widgets()
+    
+        if not GEMINI_KEY:
+            self.mostrar_error_config()
 
     def crear_widgets(self):
         self.lbl_status = ctk.CTkLabel(self, text="● SISTEMA LISTO", text_color="#2ecc71", font=("Roboto", 11, "bold"))
@@ -37,10 +42,24 @@ class AsistenteFlotante(ctk.CTk):
         self.btn_send = ctk.CTkButton(self.input_frame, text=">", width=40, command=self.iniciar_envio)
         self.btn_send.pack(side="right", padx=(0, 5))
 
+    def mostrar_error_config(self):
+        instrucciones = (
+            "⚠️ ERROR DE CONFIGURACIÓN\n\n"
+            "No se detectó la GEMINI_KEY.\n\n"
+            "1. Consigue tu clave en:\nhttps://aistudio.google.com/app/apikey\n\n"
+            "2. Configúrala como variable de entorno o en un archivo .env"
+        )
+        self.actualizar_chat(instrucciones)
+        self.lbl_status.configure(text="● FALTA API KEY", text_color="#e74c3c")
+
     def iniciar_envio(self, event=None):
         user_input = self.entry_message.get()
         if not user_input: return
         
+        if not client:
+            self.actualizar_chat("\nSISTEMA: No puedo procesar sin la GEMINI_KEY.\n")
+            return
+
         self.btn_send.configure(state="disabled")
         self.actualizar_chat(f"USUARIO: {user_input}\n")
         self.entry_message.delete(0, "end")
@@ -56,10 +75,7 @@ class AsistenteFlotante(ctk.CTk):
             )
             self.actualizar_chat(f"IA: {response.text}\n\n")
         except Exception as e:
-            if "429" in str(e):
-                self.actualizar_chat("ERROR: Cuota excedida.\n\n")
-            else:
-                self.actualizar_chat(f"ERROR: {str(e)}\n")
+            self.actualizar_chat(f"ERROR: {str(e)}\n")
         finally:
             self.btn_send.configure(state="normal")
             self.lbl_status.configure(text="● SISTEMA LISTO", text_color="#2ecc71")
